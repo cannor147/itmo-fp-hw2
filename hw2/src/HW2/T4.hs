@@ -10,13 +10,15 @@ module HW2.T4
   , eval
   ) where
 
-import           Control.Monad (ap)
+import           Control.Monad  (ap)
+import           Data.Bifunctor (bimap)
 import           HW2.T1
+import           HW2.T2
 
 data State s a = S { runS :: s -> Annotated s a }
 
 mapState :: (a -> b) -> State s a -> State s b
-mapState f S{ runS = annotator } = S { runS = mapAnnotated f . annotator }
+mapState f S { runS = annotator } = S { runS = mapAnnotated f . annotator }
 
 wrapState :: a -> State s a
 wrapState value = S { runS = (:#) value }
@@ -25,7 +27,7 @@ extractAnnotated :: Annotated s (State s a) -> Annotated s a
 extractAnnotated (state :# y) = runS state y
 
 joinState :: State s (State s a) -> State s a
-joinState S{ runS = annotator } = S { runS = extractAnnotated . annotator }
+joinState S { runS = annotator } = S { runS = extractAnnotated . annotator }
 
 modifyState :: (s -> s) -> State s ()
 modifyState modifier = S { runS = (:#) () . modifier }
@@ -49,6 +51,14 @@ data Prim a
   | Sgn a
   deriving Show
 
+calculate :: Fractional a => Prim a -> a
+calculate (Add x y) = x + y
+calculate (Sub x y) = x - y
+calculate (Mul x y) = x * y
+calculate (Div x y) = x / y
+calculate (Abs x)   = abs x
+calculate (Sgn x)   = signum x
+
 data Expr = Val Double | Op (Prim Expr)
   deriving Show
 
@@ -64,27 +74,27 @@ instance Fractional Expr where
   x / y = Op (Div x y)
   fromRational x = Val (fromRational x)
 
+type UnaryOperation = Double -> Prim Double
+
+type BinaryOperation = Double -> Double -> Prim Double
+
+getUnaryEval :: UnaryOperation -> Expr -> Annotated [Prim Double] (Prim Double)
+getUnaryEval op = mapAnnotated op . getEval
+
+getBinaryEval :: BinaryOperation -> (Expr, Expr) -> Annotated [Prim Double] (Prim Double)
+getBinaryEval op = (mapAnnotated (uncurry op) . distAnnotated) . bimap getEval getEval
+
+getEval :: Expr -> Annotated [Prim Double] Double
+getEval arg = runS (eval arg) mempty
+
 eval :: Expr -> State [Prim Double] Double
 eval (Val value) = pure value
-eval (Op (Add x y)) = S { runS = (:#) (v1 + v2) . (++) ((Add v1 v2) : a2 ++ a1) }
-  where
-    (v1 :# a1) = runS (eval x) []
-    (v2 :# a2) = runS (eval y) []
-eval (Op (Mul x y)) = S { runS = (:#) (v1 * v2) . (++) ((Mul v1 v2) : a2 ++ a1) }
-  where
-    (v1 :# a1) = runS (eval x) []
-    (v2 :# a2) = runS (eval y) []
-eval (Op (Sub x y)) = S { runS = (:#) (v1 - v2) . (++) ((Sub v1 v2) : a2 ++ a1) }
-  where
-    (v1 :# a1) = runS (eval x) []
-    (v2 :# a2) = runS (eval y) []
-eval (Op (Div x y)) = S { runS = (:#) (v1 / v2) . (++) ((Div v1 v2) : a2 ++ a1) }
-  where
-    (v1 :# a1) = runS (eval x) []
-    (v2 :# a2) = runS (eval y) []
-eval (Op (Abs x)) = S { runS = (:#) (abs v1) . (++) ((Abs v1) : a1) }
-  where
-    (v1 :# a1) = runS (eval x) []
-eval (Op (Sgn x)) = S { runS = (:#) (signum v1) . (++) ((Sgn v1) : a1) }
-  where
-    (v1 :# a1) = runS (eval x) []
+eval (Op operation) = do
+  let (prim :# annotation) = case operation of
+        (Add x y) -> getBinaryEval Add (x, y)
+        (Sub x y) -> getBinaryEval Sub (x, y)
+        (Mul x y) -> getBinaryEval Mul (x, y)
+        (Div x y) -> getBinaryEval Div (x, y)
+        (Abs x)   -> getUnaryEval Abs x
+        (Sgn x)   -> getUnaryEval Sgn x
+  calculate prim <$ modifyState ((<>) (prim : annotation))
