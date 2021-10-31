@@ -21,6 +21,7 @@ library
   exposed-modules:     HW2.T1
                        HW2.T2
                        HW2.T3
+                       HW2.T4
   ghc-options:         -Wall
   build-depends:       base >= 4.9 && < 5
   default-language:    Haskell2010
