@@ -1,9 +1,9 @@
 module HW2.T3
-  ( joinOption
+  ( joinAnnotated
   , joinExcept
-  , joinAnnotated
-  , joinList
   , joinFun
+  , joinList
+  , joinOption
   ) where
 
 import           HW2.T1

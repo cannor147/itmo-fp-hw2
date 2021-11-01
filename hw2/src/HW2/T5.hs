@@ -1,12 +1,12 @@
 module HW2.T5
   ( ExceptState(..)
-  , mapExceptState
-  , wrapExceptState
-  , joinExceptState
-  , modifyExceptState
-  , throwExceptState
   , eval
   , evalES
+  , joinExceptState
+  , mapExceptState
+  , modifyExceptState
+  , throwExceptState
+  , wrapExceptState
   ) where
 
 import           Control.Monad  (ap)

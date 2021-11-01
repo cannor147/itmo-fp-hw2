@@ -1,33 +1,32 @@
 module HW2.T1
-  ( Option(..)
-  , Pair(..)
-  , Quad(..)
-  , Annotated(..)
+  ( Annotated(..)
   , Except(..)
-  , Prioritised(..)
-  , Stream(..)
-  , List(..)
   , Fun(..)
+  , List(..)
+  , Option(..)
+  , Pair(..)
+  , Prioritised(..)
+  , Quad(..)
+  , Stream(..)
   , Tree(..)
-  , mapOption
-  , mapPair
-  , mapQuad
   , mapAnnotated
   , mapExcept
-  , mapPrioritised
-  , mapStream
-  , mapList
   , mapFun
+  , mapList
+  , mapOption
+  , mapPair
+  , mapPrioritised
+  , mapQuad
+  , mapStream
   , mapTree
   ) where
-
 
 data Option a = None | Some a
   deriving Show
 
 mapOption :: (a -> b) -> (Option a -> Option b)
 mapOption _ None         = None
-mapOption f (Some value) = Some $ f value
+mapOption f (Some value) = Some (f value)
 
 data Pair a = P a a
   deriving Show
@@ -53,15 +52,15 @@ data Except e a = Error e | Success a
 
 mapExcept :: (a -> b) -> (Except e a -> Except e b)
 mapExcept _ (Error error')  = Error error'
-mapExcept f (Success value) = Success $ f value
+mapExcept f (Success value) = Success (f value)
 
 data Prioritised a = Low a | Medium a | High a
   deriving Show
 
 mapPrioritised :: (a -> b) -> (Prioritised a -> Prioritised b)
-mapPrioritised f (Low value)    = Low $ f value
-mapPrioritised f (Medium value) = Medium $ f value
-mapPrioritised f (High value)   = High $ f value
+mapPrioritised f (Low value)    = Low (f value)
+mapPrioritised f (Medium value) = Medium (f value)
+mapPrioritised f (High value)   = High (f value)
 
 data Stream a = a :> Stream a
   deriving Show
@@ -80,8 +79,11 @@ mapList f (head' :. tail') = f head' :. mapList f tail'
 
 data Fun i a = F (i -> a)
 
+(<-=-) :: (b -> c) -> (a -> b) -> (a -> c)
+(<-=-) f g x = f (g x)
+
 mapFun :: (a -> b) -> (Fun i a -> Fun i b)
-mapFun f (F function) = F (f . function)
+mapFun f (F function) = F (f <-=- function)
 
 data Tree a = Leaf | Branch (Tree a) a (Tree a)
   deriving Show

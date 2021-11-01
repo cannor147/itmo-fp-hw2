@@ -1,22 +1,22 @@
 module HW2.T2
-  ( distOption
-  , distPair
-  , distQuad
-  , distAnnotated
+  ( distAnnotated
   , distExcept
-  , distPrioritised
-  , distStream
-  , distList
   , distFun
-  , wrapOption
-  , wrapPair
-  , wrapQuad
+  , distList
+  , distOption
+  , distPair
+  , distPrioritised
+  , distQuad
+  , distStream
   , wrapAnnotated
   , wrapExcept
-  , wrapPrioritised
-  , wrapStream
-  , wrapList
   , wrapFun
+  , wrapList
+  , wrapOption
+  , wrapPair
+  , wrapPrioritised
+  , wrapQuad
+  , wrapStream
   ) where
 
 import           HW2.T1
@@ -65,7 +65,7 @@ distList (firstHead :. firstTail, second) = pairLine second
     pairLine Nil              = distList (firstTail, second)
 
 distFun :: (Fun i a, Fun i b) -> Fun i (a, b)
-distFun (F firstFunction, F secondFunction) = F $ \x -> (firstFunction x, secondFunction x)
+distFun (F firstFunction, F secondFunction) = F (\x -> (firstFunction x, secondFunction x))
 
 wrapOption :: a -> Option a
 wrapOption value = Some value
@@ -92,4 +92,4 @@ wrapList :: a -> List a
 wrapList value = value :. Nil
 
 wrapFun :: a -> Fun i a
-wrapFun value = F $ const value
+wrapFun value = F (const value)

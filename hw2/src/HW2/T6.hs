@@ -3,14 +3,14 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module HW2.T6
-  ( ParseError(..)
-  , Parser(..)
-  , runP
-  , pChar
-  , parseError
-  , pEof
+  ( Parser(..)
+  , ParseError(..)
   , pAbbr
+  , parseError
   , parseExpr
+  , pChar
+  , pEof
+  , runP
   ) where
 
 import           Control.Applicative (Alternative (..))

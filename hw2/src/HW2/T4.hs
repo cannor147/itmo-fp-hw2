@@ -1,16 +1,16 @@
 module HW2.T4
-  ( State(..)
-  , mapState
-  , wrapState
-  , joinState
-  , modifyState
+  ( Expr(..)
   , Prim(..)
-  , Expr(..)
-  , calculate
-  , UnaryOperation
+  , State(..)
   , BinaryOperation
+  , UnaryOperation
+  , calculate
   , eval
   , evalS
+  , mapState
+  , modifyState
+  , joinState
+  , wrapState
   ) where
 
 import           Control.Monad  (ap)
