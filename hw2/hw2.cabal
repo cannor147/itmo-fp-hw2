@@ -22,6 +22,7 @@ library
                        HW2.T2
                        HW2.T3
                        HW2.T4
+                       HW2.T5
   ghc-options:         -Wall
   build-depends:       base >= 4.9 && < 5
   default-language:    Haskell2010

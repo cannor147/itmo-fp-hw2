@@ -2,12 +2,15 @@ module HW2.T4
   ( State(..)
   , mapState
   , wrapState
-  , extractAnnotated
   , joinState
   , modifyState
   , Prim(..)
   , Expr(..)
+  , calculate
+  , UnaryOperation
+  , BinaryOperation
   , eval
+  , evalS
   ) where
 
 import           Control.Monad  (ap)
@@ -24,7 +27,7 @@ wrapState :: a -> State s a
 wrapState value = S { runS = (:#) value }
 
 extractAnnotated :: Annotated s (State s a) -> Annotated s a
-extractAnnotated (state :# y) = runS state y
+extractAnnotated (state :# annotation) = runS state annotation
 
 joinState :: State s (State s a) -> State s a
 joinState S { runS = annotator } = S { runS = extractAnnotated . annotator }
@@ -78,10 +81,12 @@ type UnaryOperation = Double -> Prim Double
 
 type BinaryOperation = Double -> Double -> Prim Double
 
-getUnaryEval :: UnaryOperation -> Expr -> Annotated [Prim Double] (Prim Double)
+type EvaluationResult = Annotated [Prim Double] (Prim Double)
+
+getUnaryEval :: UnaryOperation -> Expr -> EvaluationResult
 getUnaryEval op = mapAnnotated op . getEval
 
-getBinaryEval :: BinaryOperation -> (Expr, Expr) -> Annotated [Prim Double] (Prim Double)
+getBinaryEval :: BinaryOperation -> (Expr, Expr) -> EvaluationResult
 getBinaryEval op = (mapAnnotated (uncurry op) . distAnnotated) . bimap getEval getEval
 
 getEval :: Expr -> Annotated [Prim Double] Double
@@ -98,3 +103,6 @@ eval (Op operation) = do
         (Abs x)   -> getUnaryEval Abs x
         (Sgn x)   -> getUnaryEval Sgn x
   calculate prim <$ modifyState ((<>) (prim : annotation))
+
+evalS :: Expr -> State [Prim Double] Double
+evalS = eval
