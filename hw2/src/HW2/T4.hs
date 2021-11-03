@@ -18,20 +18,26 @@ import           Data.Bifunctor (bimap)
 import           HW2.T1
 import           HW2.T2
 
+-- | Custom implementation of state.
 data State s a = S { runS :: s -> Annotated s a }
 
+-- | Maps values in custom state.
 mapState :: (a -> b) -> State s a -> State s b
 mapState f S { runS = annotator } = S { runS = mapAnnotated f . annotator }
 
+-- | Wraps custom state over value.
 wrapState :: a -> State s a
 wrapState value = S { runS = (:#) value }
 
+-- | Extracts custom annotated value from nested custom state in annotated value.
 extractAnnotated :: Annotated s (State s a) -> Annotated s a
 extractAnnotated (state :# annotation) = runS state annotation
 
+-- | Joins nested custom states.
 joinState :: State s (State s a) -> State s a
 joinState S { runS = annotator } = S { runS = extractAnnotated . annotator }
 
+-- | Creates instance of custom state with modifying function for annotation.
 modifyState :: (s -> s) -> State s ()
 modifyState modifier = S { runS = (:#) () . modifier }
 
@@ -45,6 +51,7 @@ instance Applicative (State s) where
 instance Monad (State s) where
   m >>= f = joinState (fmap f m)
 
+-- | Custom implementation of mathematical operations.
 data Prim a
   = Add a a
   | Sub a a
@@ -54,6 +61,7 @@ data Prim a
   | Sgn a
   deriving Show
 
+-- | Calculates value from custom mathematical operation.
 calculate :: Fractional a => Prim a -> a
 calculate (Add x y) = x + y
 calculate (Sub x y) = x - y
@@ -62,6 +70,7 @@ calculate (Div x y) = x / y
 calculate (Abs x)   = abs x
 calculate (Sgn x)   = signum x
 
+-- | Custom implementation of mathematical expression.
 data Expr = Val Double | Op (Prim Expr)
   deriving Show
 
@@ -77,21 +86,28 @@ instance Fractional Expr where
   x / y = Op (Div x y)
   fromRational x = Val (fromRational x)
 
+-- | Custom unary operation.
 type UnaryOperation = Double -> Prim Double
 
+-- | Custom binary operation.
 type BinaryOperation = Double -> Double -> Prim Double
 
+-- | Result for evaluation state.
 type EvaluationResult = Annotated [Prim Double] (Prim Double)
 
+-- | Gets evaluation result from custom unary operation and argument.
 getUnaryEval :: UnaryOperation -> Expr -> EvaluationResult
 getUnaryEval op = mapAnnotated op . getEval
 
+-- | Gets evaluation result from custom binary operation and arguments.
 getBinaryEval :: BinaryOperation -> (Expr, Expr) -> EvaluationResult
 getBinaryEval op = (mapAnnotated (uncurry op) . distAnnotated) . bimap getEval getEval
 
+-- | Gets fully calculated version of evaluation result for any expression.
 getEval :: Expr -> Annotated [Prim Double] Double
 getEval arg = runS (eval arg) mempty
 
+-- | Evaluates expression into state.
 eval :: Expr -> State [Prim Double] Double
 eval (Val value) = pure value
 eval (Op operation) = do
@@ -104,5 +120,6 @@ eval (Op operation) = do
         (Sgn x)   -> getUnaryEval Sgn x
   calculate prim <$ modifyState ((<>) (prim : annotation))
 
+-- | Well-named version of eval.
 evalS :: Expr -> State [Prim Double] Double
 evalS = eval
