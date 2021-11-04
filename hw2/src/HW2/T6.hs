@@ -19,8 +19,9 @@ module HW2.T6
 import           Control.Applicative (Alternative (..), optional)
 import           Control.Monad       (MonadPlus, mfilter)
 import           Data.Char           (digitToInt, isDigit, isUpper)
-import           Data.Foldable       (foldl', foldr')
+import           Data.Foldable       (foldl')
 import           Data.Maybe          (fromMaybe, isJust)
+import           Data.Scientific     (scientific, toRealFloat)
 import           GHC.Natural         (Natural, intToNatural)
 import           HW2.T1              (Annotated (..), Except (..))
 import           HW2.T4              (Expr (..), Prim (..))
@@ -125,8 +126,8 @@ pAddSub = buildPBinary pMulDiv (\c -> c == '+' || c == '-') $ \op x y ->
 pMulDiv :: Parser Expr
 pMulDiv = buildPBinary pUnary (\c -> c == '*' || c == '/') $ \op x y ->
   case op of
-    '*'   -> Op $ Add x y
-    '/'   -> Op $ Sub x y
+    '*'   -> Op $ Mul x y
+    '/'   -> Op $ Div x y
     token -> error $ "Expected (*) or (/) token, but found " ++ [token]
 
 -- | Creates parser for unary expression.
@@ -151,19 +152,18 @@ pBrackets = do
 pDouble :: Parser Expr
 pDouble = do
   skipWhiteSpaces
-  integralPart <- some $ mfilter isDigit pChar
-  if head integralPart == '0' && length integralPart > 2
-    then parseErrorWithShift $ intToNatural $ length integralPart
+  integral <- some $ mfilter isDigit pChar
+  if head integral == '0' && length integral > 2
+    then parseErrorWithShift $ intToNatural $ length integral
     else do
       decimalSeparator    <- optional $ mfilter ((==) '.') pChar
       fractionalPartMaybe <- optional $ some $ mfilter isDigit pChar
-      let fractionalPart   = fromMaybe "" fractionalPartMaybe
+      let fractional       = fromMaybe "" fractionalPartMaybe
       if isJust decimalSeparator /= isJust fractionalPartMaybe
         then parseError
         else do
-          let integral   = foldl' (\x y -> 10.0 * x + digitToNum y) 0.0 integralPart
-          let fractional = 0.1 * foldr' (\x y -> (digitToNum x) + 0.1 * y) 0.0 fractionalPart
-          pure $ Val $ integral + fractional
+          let coefficient = foldl' (\x y -> 10 * x + digitToNum y) 0 $ integral <> fractional
+          pure $ Val $ toRealFloat $ scientific coefficient $ negate $ length fractional
 
 -- | Creates parser for add or sub expression.
 parseExpr :: String -> Except ParseError Expr
