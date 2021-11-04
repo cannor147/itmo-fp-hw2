@@ -31,10 +31,6 @@ joinList (head' :. tail') = joinLine head'
     joinLine (head'' :. tail'') = head'' :. joinLine tail''
     joinLine Nil                = joinList tail'
 
--- | Extracts function from custom function object.
-extractFun :: Fun i a -> (i -> a)
-extractFun (F function) = function
-
 -- | Joins nested function objects.
 joinFun :: Fun i (Fun i a) -> Fun i a
-joinFun (F outerFunction) = F $ \x -> extractFun (outerFunction x) x
+joinFun (F f) = F $ (\(F g) -> g) =<< f
