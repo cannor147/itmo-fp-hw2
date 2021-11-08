@@ -2,11 +2,9 @@ module HW2.T4
   ( Expr(..)
   , Prim(..)
   , State(..)
-  , BinaryOperation
-  , UnaryOperation
   , calculate
-  , correlatedBimap
   , eval
+  , evalM
   , evalS
   , mapState
   , modifyState
@@ -14,11 +12,8 @@ module HW2.T4
   , wrapState
   ) where
 
-import           Control.Arrow  ((>>>))
-import           Control.Monad  (ap)
-import           Data.Bifunctor (bimap, first)
+import           Control.Monad (ap)
 import           HW2.T1
-import           HW2.T2         (distAnnotated, wrapAnnotated)
 
 -- | Custom implementation of state.
 data State s a = S { runS :: s -> Annotated s a }
@@ -64,7 +59,7 @@ data Prim a
   deriving Show
 
 -- | Calculates value from custom mathematical operation.
-calculate :: Fractional a => Prim a -> a
+calculate :: Fractional f => Prim f -> f
 calculate (Add x y) = x + y
 calculate (Sub x y) = x - y
 calculate (Mul x y) = x * y
@@ -88,46 +83,31 @@ instance Fractional Expr where
   x / y = Op (Div x y)
   fromRational x = Val (fromRational x)
 
--- | Custom unary operation.
-type UnaryOperation = Double -> Prim Double
+-- | Evaluates expression into some Monad.
+evalM :: (Monad m, Fractional f) => Expr -> (Prim f -> m f) -> m f
+evalM (Val value)    _      = pure $ realToFrac value
+evalM (Op operation) action = evalArgs operation
+  where
+    evalArgs (Add firstArg secondArg) = evalBinary Add firstArg secondArg
+    evalArgs (Sub firstArg secondArg) = evalBinary Sub firstArg secondArg
+    evalArgs (Mul firstArg secondArg) = evalBinary Mul firstArg secondArg
+    evalArgs (Div firstArg secondArg) = evalBinary Div firstArg secondArg
+    evalArgs (Abs firstArg)           = evalUnary Abs firstArg
+    evalArgs (Sgn firstArg)           = evalUnary Sgn firstArg
+    evalUnary operator firstArg = do
+      firstResult <- evalM firstArg action
+      action $ operator firstResult
+    evalBinary operator firstArg secondArg = do
+      firstResult  <- evalM firstArg action
+      secondResult <- evalM secondArg action
+      action $ operator firstResult secondResult
 
--- | Custom binary operation.
-type BinaryOperation = Double -> Double -> Prim Double
-
--- | Result for evaluation state.
-type EvaluationResult = Annotated [Prim Double] (Prim Double)
-
--- | Maps values in pair with correlated second mapper with first mapper result.
-correlatedBimap :: (a -> b) -> (b -> a -> b) -> ((a, a) -> (b, b))
-correlatedBimap f g (x, y) = let xResult = f x in (xResult, (g xResult y))
-
--- | Gets evaluation result from custom unary operation and argument.
-getUnaryEval :: UnaryOperation -> Expr -> EvaluationResult
-getUnaryEval op = eval
-  >>> flip runS mempty
-  >>> mapAnnotated op
-
--- | Gets evaluation result from custom binary operation and arguments.
-getBinaryEval :: BinaryOperation -> (Expr, Expr) -> EvaluationResult
-getBinaryEval op = bimap eval eval
-  >>> correlatedBimap (flip runS mempty) (\(_ :# array) -> flip runS array)
-  >>> first (\(value :# _) -> wrapAnnotated value)
-  >>> distAnnotated
-  >>> mapAnnotated (uncurry op)
-
--- | Evaluates expression into state.
-eval :: Expr -> State [Prim Double] Double
-eval (Val value) = pure value
-eval (Op operation) = do
-  let (prim :# annotation) = case operation of
-        (Add x y) -> getBinaryEval Add (x, y)
-        (Sub x y) -> getBinaryEval Sub (x, y)
-        (Mul x y) -> getBinaryEval Mul (x, y)
-        (Div x y) -> getBinaryEval Div (x, y)
-        (Abs x)   -> getUnaryEval Abs x
-        (Sgn x)   -> getUnaryEval Sgn x
-  calculate prim <$ modifyState ((<>) (prim : annotation))
-
--- | Well-named version of eval.
+-- | Evaluates expression into custom State.
 evalS :: Expr -> State [Prim Double] Double
-evalS = eval
+evalS expr = evalM expr $ \evaluatedOperation -> do
+  modifyState $ (:) evaluatedOperation
+  return $ calculate evaluatedOperation
+
+-- | Well-named version of evalS.
+eval :: Expr -> State [Prim Double] Double
+eval = evalS

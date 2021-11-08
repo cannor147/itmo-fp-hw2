@@ -9,13 +9,9 @@ module HW2.T5
   , wrapExceptState
   ) where
 
-import           Control.Arrow  ((>>>))
 import           Control.Monad  (ap)
-import           Data.Bifunctor (bimap, first)
 import           HW2.T1
-import           HW2.T2         (distAnnotated, distExcept, wrapAnnotated)
-import           HW2.T4         (BinaryOperation, Expr (..), Prim (..),
-                                 UnaryOperation, calculate, correlatedBimap)
+import           HW2.T4         (Expr (..), Prim (..), calculate, evalM)
 
 -- | Custom implementation of exceptionable state.
 data ExceptState e s a = ES { runES :: s -> Except e (Annotated s a) }
@@ -58,42 +54,14 @@ instance Monad (ExceptState e s) where
 data EvaluationError = DivideByZero
   deriving Show
 
--- | Result for exceptionable evaluation state.
-type EvaluationResult = Except EvaluationError (Annotated [Prim Double] (Prim Double))
-
--- | Gets evaluation result from custom unary operation and argument.
-getUnaryEval :: UnaryOperation -> Expr -> EvaluationResult
-getUnaryEval op = eval
-  >>> flip runES mempty
-  >>> mapExcept (mapAnnotated op)
-
--- | Gets evaluation result from custom binary operation and arguments.
-getBinaryEval :: BinaryOperation -> (Expr, Expr) -> EvaluationResult
-getBinaryEval op = bimap eval eval
-  >>> correlatedBimap (flip runES mempty) (mapExcept (\(_ :# array) -> array) >>> runESWithArray)
-  >>> first (mapExcept (\(value :# _) -> wrapAnnotated value))
-  >>> distExcept
-  >>> mapExcept (distAnnotated >>> mapAnnotated (uncurry op))
-    where
-      runESWithArray (Error error') = const $ Error error'
-      runESWithArray (Success array) = flip runES array
-
--- | Evaluates expression into exceptionable state.
-eval :: Expr -> ExceptState EvaluationError [Prim Double] Double
-eval (Val value) = pure value
-eval (Op operation) = do
-  let wrapped = case operation of
-        (Add x y) -> getBinaryEval Add (x, y)
-        (Sub x y) -> getBinaryEval Sub (x, y)
-        (Mul x y) -> getBinaryEval Mul (x, y)
-        (Div x y) -> getBinaryEval Div (x, y)
-        (Abs x)   -> getUnaryEval Abs x
-        (Sgn x)   -> getUnaryEval Sgn x
-  case wrapped of
-    Error error'                 -> throwExceptState error'
-    Success (Div _ 0 :# _)       -> throwExceptState DivideByZero
-    Success (prim :# annotation) -> calculate prim <$ modifyExceptState ((<>) (prim : annotation))
-
--- | Well-named version of eval.
+-- | Evaluates expression into custom ExceptState.
 evalES :: Expr -> ExceptState EvaluationError [Prim Double] Double
-evalES = eval
+evalES expr = evalM expr $ \evaluatedOperation -> case evaluatedOperation of
+  (Div _ 0) -> throwExceptState DivideByZero
+  _         -> do
+    modifyExceptState $ (:) evaluatedOperation
+    return $ calculate evaluatedOperation
+
+-- | Well-named version of evalES.
+eval :: Expr -> ExceptState EvaluationError [Prim Double] Double
+eval = evalES

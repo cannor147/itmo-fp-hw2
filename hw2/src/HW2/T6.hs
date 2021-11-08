@@ -165,6 +165,6 @@ pDouble = do
           let coefficient = foldl' (\x y -> 10 * x + digitToNum y) 0 $ integral <> fractional
           pure $ Val $ toRealFloat $ scientific coefficient $ negate $ length fractional
 
--- | Creates parser for add or sub expression.
+-- | Parse expression from string.
 parseExpr :: String -> Except ParseError Expr
 parseExpr = runP pExpr
