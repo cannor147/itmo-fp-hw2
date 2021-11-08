@@ -9,12 +9,13 @@ module HW2.T5
   , wrapExceptState
   ) where
 
+import           Control.Arrow  ((>>>))
 import           Control.Monad  (ap)
-import           Data.Bifunctor (bimap)
+import           Data.Bifunctor (bimap, first)
 import           HW2.T1
-import           HW2.T2         (distAnnotated, distExcept)
+import           HW2.T2         (distAnnotated, distExcept, wrapAnnotated)
 import           HW2.T4         (BinaryOperation, Expr (..), Prim (..),
-                                 UnaryOperation, calculate)
+                                 UnaryOperation, calculate, correlatedBimap)
 
 -- | Custom implementation of exceptionable state.
 data ExceptState e s a = ES { runES :: s -> Except e (Annotated s a) }
@@ -62,17 +63,20 @@ type EvaluationResult = Except EvaluationError (Annotated [Prim Double] (Prim Do
 
 -- | Gets evaluation result from custom unary operation and argument.
 getUnaryEval :: UnaryOperation -> Expr -> EvaluationResult
-getUnaryEval op = mapExcept (mapAnnotated op) . getEval
+getUnaryEval op = eval
+  >>> flip runES mempty
+  >>> mapExcept (mapAnnotated op)
 
 -- | Gets evaluation result from custom binary operation and arguments.
 getBinaryEval :: BinaryOperation -> (Expr, Expr) -> EvaluationResult
-getBinaryEval op = (mapExcept flatMapper . distExcept) . bimap getEval getEval
-  where
-    flatMapper = mapAnnotated (uncurry op) . distAnnotated
-
--- | Gets fully calculated version of evaluation result for any expression.
-getEval :: Expr -> Except EvaluationError (Annotated [Prim Double] Double)
-getEval arg = runES (eval arg) mempty
+getBinaryEval op = bimap eval eval
+  >>> correlatedBimap (flip runES mempty) (mapExcept (\(_ :# array) -> array) >>> runESWithArray)
+  >>> first (mapExcept (\(value :# _) -> wrapAnnotated value))
+  >>> distExcept
+  >>> mapExcept (distAnnotated >>> mapAnnotated (uncurry op))
+    where
+      runESWithArray (Error error') = const $ Error error'
+      runESWithArray (Success array) = flip runES array
 
 -- | Evaluates expression into exceptionable state.
 eval :: Expr -> ExceptState EvaluationError [Prim Double] Double

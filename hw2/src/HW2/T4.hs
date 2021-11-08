@@ -5,6 +5,7 @@ module HW2.T4
   , BinaryOperation
   , UnaryOperation
   , calculate
+  , correlatedBimap
   , eval
   , evalS
   , mapState
@@ -13,10 +14,11 @@ module HW2.T4
   , wrapState
   ) where
 
+import           Control.Arrow  ((>>>))
 import           Control.Monad  (ap)
-import           Data.Bifunctor (bimap)
+import           Data.Bifunctor (bimap, first)
 import           HW2.T1
-import           HW2.T2
+import           HW2.T2         (distAnnotated, wrapAnnotated)
 
 -- | Custom implementation of state.
 data State s a = S { runS :: s -> Annotated s a }
@@ -95,17 +97,23 @@ type BinaryOperation = Double -> Double -> Prim Double
 -- | Result for evaluation state.
 type EvaluationResult = Annotated [Prim Double] (Prim Double)
 
+-- | Maps values in pair with correlated second mapper with first mapper result.
+correlatedBimap :: (a -> b) -> (b -> a -> b) -> ((a, a) -> (b, b))
+correlatedBimap f g (x, y) = let xResult = f x in (xResult, (g xResult y))
+
 -- | Gets evaluation result from custom unary operation and argument.
 getUnaryEval :: UnaryOperation -> Expr -> EvaluationResult
-getUnaryEval op = mapAnnotated op . getEval
+getUnaryEval op = eval
+  >>> flip runS mempty
+  >>> mapAnnotated op
 
 -- | Gets evaluation result from custom binary operation and arguments.
 getBinaryEval :: BinaryOperation -> (Expr, Expr) -> EvaluationResult
-getBinaryEval op = (mapAnnotated (uncurry op) . distAnnotated) . bimap getEval getEval
-
--- | Gets fully calculated version of evaluation result for any expression.
-getEval :: Expr -> Annotated [Prim Double] Double
-getEval arg = runS (eval arg) mempty
+getBinaryEval op = bimap eval eval
+  >>> correlatedBimap (flip runS mempty) (\(_ :# array) -> flip runS array)
+  >>> first (\(value :# _) -> wrapAnnotated value)
+  >>> distAnnotated
+  >>> mapAnnotated (uncurry op)
 
 -- | Evaluates expression into state.
 eval :: Expr -> State [Prim Double] Double
