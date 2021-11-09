@@ -7,7 +7,6 @@ module HW2.T6
   , ParseError(..)
   , pAbbr
   , parseError
-  , parseErrorWithShift
   , parseExpr
   , pChar
   , pDouble
@@ -22,7 +21,7 @@ import           Data.Char           (digitToInt, isDigit, isUpper)
 import           Data.Foldable       (foldl')
 import           Data.Maybe          (fromMaybe, isJust)
 import           Data.Scientific     (scientific, toRealFloat)
-import           GHC.Natural         (Natural, intToNatural)
+import           GHC.Natural         (Natural)
 import           HW2.T1              (Annotated (..), Except (..))
 import           HW2.T4              (Expr (..), Prim (..))
 import           HW2.T5              (ExceptState (..), runES)
@@ -48,13 +47,9 @@ pChar = P $ ES \(pos, s) ->
     []     -> Error (ErrorAtPos pos)
     (c:cs) -> Success (c :# (pos + 1, cs))
 
--- | Creates parser that always throws an exception by shifted position.
-parseErrorWithShift :: Natural -> Parser a
-parseErrorWithShift shift = P $ ES { runES = ((Error . ErrorAtPos) . (flip (-) shift)) . fst }
-
 -- | Creates parser that always throws an exception.
 parseError :: Parser a
-parseError = parseErrorWithShift 0
+parseError = P $ ES { runES = const $ Error $ ErrorAtPos 0 }
 
 instance Alternative Parser where
   empty = parseError
@@ -152,18 +147,15 @@ pBrackets = do
 pDouble :: Parser Expr
 pDouble = do
   skipWhiteSpaces
-  integral <- some $ mfilter isDigit pChar
-  if head integral == '0' && length integral > 2
-    then parseErrorWithShift $ intToNatural $ length integral
+  integral            <- some $ mfilter isDigit pChar
+  decimalSeparator    <- optional $ mfilter ((==) '.') pChar
+  fractionalPartMaybe <- optional $ some $ mfilter isDigit pChar
+  let fractional       = fromMaybe "" fractionalPartMaybe
+  if isJust decimalSeparator /= isJust fractionalPartMaybe
+    then parseError
     else do
-      decimalSeparator    <- optional $ mfilter ((==) '.') pChar
-      fractionalPartMaybe <- optional $ some $ mfilter isDigit pChar
-      let fractional       = fromMaybe "" fractionalPartMaybe
-      if isJust decimalSeparator /= isJust fractionalPartMaybe
-        then parseError
-        else do
-          let coefficient = foldl' (\x y -> 10 * x + digitToNum y) 0 $ integral <> fractional
-          pure $ Val $ toRealFloat $ scientific coefficient $ negate $ length fractional
+      let coefficient = foldl' (\x y -> 10 * x + digitToNum y) 0 $ integral <> fractional
+      pure $ Val $ toRealFloat $ scientific coefficient $ negate $ length fractional
 
 -- | Parse expression from string.
 parseExpr :: String -> Except ParseError Expr
