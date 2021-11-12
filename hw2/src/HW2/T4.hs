@@ -83,7 +83,7 @@ instance Fractional Expr where
   x / y = Op (Div x y)
   fromRational x = Val (fromRational x)
 
--- | Evaluates expression into some Monad.
+-- | Evaluates expression into some Monad with custom calculating function.
 evalM :: (Monad m, Fractional f) => Expr -> (Prim f -> m f) -> m f
 evalM (Val value)    _      = pure $ realToFrac value
 evalM (Op operation) action = evalArgs operation

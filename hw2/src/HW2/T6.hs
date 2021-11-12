@@ -16,7 +16,7 @@ module HW2.T6
   ) where
 
 import           Control.Applicative (Alternative (..), optional)
-import           Control.Monad       (MonadPlus, mfilter)
+import           Control.Monad       (MonadPlus, mfilter, void)
 import           Data.Char           (digitToInt, isDigit, isUpper)
 import           Data.Foldable       (foldl')
 import           Data.Maybe          (fromMaybe, isJust)
@@ -72,86 +72,73 @@ pEof = P $ ES \(pos, s) ->
 
 -- | Creates parser for abbreviation (i.e. uppercase text).
 pAbbr :: Parser String
-pAbbr = do
-  abbr <- some (mfilter isUpper pChar)
-  pure abbr
+pAbbr = some $ mfilter isUpper pChar
+
+-- | Creates parser for symbol.
+pSymbol :: Char -> Parser String
+pSymbol symbol = some $ mfilter ((==) symbol) pChar
 
 -- | Creates parser that skips whitespaces.
 skipWhiteSpaces :: Parser ()
-skipWhiteSpaces = do
-  _ <- many (mfilter ((==) ' ') pChar)
-  pure ()
+skipWhiteSpaces = void (many (mfilter ((==) ' ') pChar)) >> pure ()
 
 -- | Transforms character into digit.
 digitToNum :: Num b => Char -> b
-digitToNum c = fromIntegral (digitToInt c)
+digitToNum character = fromIntegral (digitToInt character)
 
 -- | Creates parser for expression.
 pExpr :: Parser Expr
-pExpr = do
-  expr  <- pAddSub
-  skipWhiteSpaces
-  pEof
-  pure $ expr
+pExpr = pAddSub <* (skipWhiteSpaces >> pEof)
 
 -- | Builds parser for binary expressions.
-buildPBinary :: Parser Expr -> (Char -> Bool) -> (Char -> Expr -> Expr -> Expr) -> Parser Expr
-buildPBinary innerParser opFilter expressioner = do
-  skipWhiteSpaces
-  first  <- innerParser
-  second <- many $ buildPBinary'
-  pure $ foldl' (uncurry . flip expressioner) first second
+buildPBinary :: Parser Expr -> Parser String -> (String -> Expr -> Expr -> Expr) -> Parser Expr
+buildPBinary innerParser pOperator expressionBuilder = do
+  head' <- skipWhiteSpaces *> innerParser
+  tail' <- many $ buildPBinary'
+  pure   $ foldl' (uncurry . flip expressionBuilder) head' tail'
    where
      buildPBinary' = do
-       skipWhiteSpaces
-       op   <- mfilter opFilter pChar
-       skipWhiteSpaces
-       expr <- innerParser
-       pure $ (op, expr)
+       operator <- skipWhiteSpaces *> pOperator
+       expr     <- skipWhiteSpaces *> innerParser
+       pure      $ (operator, expr)
 
 -- | Creates parser for add or sub expression.
 pAddSub :: Parser Expr
-pAddSub = buildPBinary pMulDiv (\c -> c == '+' || c == '-') $ \op x y ->
-  case op of
-    '+'   -> Op $ Add x y
-    '-'   -> Op $ Sub x y
-    token -> error $ "Expected (+) or (-) token, but found " ++ [token]
+pAddSub = buildPBinary pMulDiv (pSymbol '+' <|> pSymbol '-') $ \operator first second ->
+  case operator of
+    "+"   -> Op $ Add first second
+    "-"   -> Op $ Sub first second
+    token -> error $ "Expected (+) or (-) token, but found " ++ token
 
 -- | Creates parser for mul or div expression.
 pMulDiv :: Parser Expr
-pMulDiv = buildPBinary pUnary (\c -> c == '*' || c == '/') $ \op x y ->
-  case op of
-    '*'   -> Op $ Mul x y
-    '/'   -> Op $ Div x y
-    token -> error $ "Expected (*) or (/) token, but found " ++ [token]
+pMulDiv = buildPBinary pUnary (pSymbol '*' <|> pSymbol '/') $ \operator first second ->
+  case operator of
+    "*"   -> Op $ Mul first second
+    "/"   -> Op $ Div first second
+    token -> error $ "Expected (*) or (/) token, but found " ++ token
 
 -- | Creates parser for unary expression.
 pUnary :: Parser Expr
-pUnary = do
-  skipWhiteSpaces
-  unary <- pBrackets <|> pDouble
-  pure $ unary
+pUnary = pBrackets <|> pDouble
 
 -- | Creates parser for wrapped expression into brackets.
 pBrackets :: Parser Expr
 pBrackets = do
-  skipWhiteSpaces
-  _ <- mfilter ((==) '(') pChar
-  skipWhiteSpaces
-  expr <- pAddSub
-  skipWhiteSpaces
-  _ <- mfilter ((==) ')') pChar
-  pure $ expr
+  void  $ skipWhiteSpaces *> pSymbol '('
+  expr <- skipWhiteSpaces *> pAddSub
+  void  $ skipWhiteSpaces *> pSymbol ')'
+  pure  $ expr
 
 -- | Creates parser for const value expression.
 pDouble :: Parser Expr
 pDouble = do
   skipWhiteSpaces
-  integral            <- some $ mfilter isDigit pChar
-  decimalSeparator    <- optional $ mfilter ((==) '.') pChar
-  fractionalPartMaybe <- optional $ some $ mfilter isDigit pChar
-  let fractional       = fromMaybe "" fractionalPartMaybe
-  if isJust decimalSeparator /= isJust fractionalPartMaybe
+  integral         <- some $ mfilter isDigit pChar
+  decimalSeparator <- optional $ pSymbol '.'
+  fractionalMaybe  <- optional $ some $ mfilter isDigit pChar
+  let fractional    = fromMaybe "" fractionalMaybe
+  if isJust decimalSeparator /= isJust fractionalMaybe
     then parseError
     else do
       let coefficient = foldl' (\x y -> 10 * x + digitToNum y) 0 $ integral <> fractional
