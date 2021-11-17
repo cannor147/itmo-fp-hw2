@@ -1,5 +1,6 @@
 module HW2.T5
-  ( ExceptState(..)
+  ( EvaluationError(..)
+  , ExceptState(..)
   , eval
   , evalES
   , joinExceptState

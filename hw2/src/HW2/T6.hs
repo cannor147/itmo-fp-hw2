@@ -49,7 +49,7 @@ pChar = P $ ES \(pos, s) ->
 
 -- | Creates parser that always throws an exception.
 parseError :: Parser a
-parseError = P $ ES { runES = const $ Error $ ErrorAtPos 0 }
+parseError = P $ ES { runES = Error . ErrorAtPos . fst }
 
 instance Alternative Parser where
   empty = parseError
@@ -76,7 +76,7 @@ pAbbr = some $ mfilter isUpper pChar
 
 -- | Creates parser for symbol.
 pSymbol :: Char -> Parser String
-pSymbol symbol = some $ mfilter ((==) symbol) pChar
+pSymbol symbol = mfilter ((==) symbol) pChar >>= return . pure  
 
 -- | Creates parser that skips whitespaces.
 skipWhiteSpaces :: Parser ()

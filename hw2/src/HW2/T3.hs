@@ -21,7 +21,7 @@ joinExcept (Success value) = value
 -- | Joins nested custom annotated values.
 joinAnnotated :: Semigroup e => Annotated e (Annotated e a) -> Annotated e a
 joinAnnotated ((value :# innerAnnotation) :# outerAnnotation) =
-  value :# innerAnnotation <> outerAnnotation
+  value :# outerAnnotation <> innerAnnotation 
 
 -- | Joins nested custom list.
 joinList :: List (List a) -> List a
