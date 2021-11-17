@@ -1,5 +1,6 @@
 module HW2.T5
-  ( ExceptState(..)
+  ( EvaluationError(..)
+  , ExceptState(..)
   , eval
   , evalES
   , joinExceptState
@@ -37,6 +38,7 @@ joinExceptState ES { runES = exceptor } = ES { runES = extractExcept . exceptor 
 modifyExceptState :: (s -> s) -> ExceptState e s ()
 modifyExceptState modifier = ES { runES = Success . (:#) () . modifier }
 
+-- | Throws custom error of exceptionable state.
 throwExceptState :: e -> ExceptState e s a
 throwExceptState error' = ES { runES = const $ Error error' }
 
